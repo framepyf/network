@@ -52,7 +52,7 @@ int main(int argc, char **argv) {
     while (1) {
         bzero(buf, sizeof(buf));
         if (read(connfd, buf, BUFFER_SIZE) == 0) {
-            printf("client quit");
+            printf("client quit\n");
             break;
         }
         printf("Receive: %s", buf);
@@ -60,7 +60,7 @@ int main(int argc, char **argv) {
         char send_line[MAXLINE];
         sprintf(send_line, "Hi, %s", buf);
 
-        int nbytes = sizeof(send_line);
+        int nbytes = strlen(send_line);
 
         if (write(connfd, send_line, nbytes) != nbytes)
             error(1, errno, "write error");

@@ -36,7 +36,7 @@ int main(int argc, char **argv) {
 
     while (fgets(send_line, MAXLINE, stdin) != NULL) {
 
-        int nbytes = sizeof(send_line);
+        int nbytes = strlen(send_line);
         if (write(sockfd, send_line, nbytes) != nbytes)
             error(1, errno, "write error");
 
