@@ -21,6 +21,40 @@ static void sig_int(int signo) {
 }
 
 #if 0 //http 特殊字符分隔解析
+size_t readline(int fd, char *buffer, size_t length) {
+    char *buf_first = buffer;
+    static char *buffer_pointer;
+    static int nleft = 0;
+    static char read_buffer[512];
+    char c;
+
+    while (--length > 0) { //先--，避免\0越界
+        if (nleft <= 0) {
+            int nread = recv(fd, read_buffer, sizeof(read_buffer), 0);
+            if (nread < 0) {
+                if (errno == EINTR) {
+                    length++;
+                    continue;
+                }
+                return -1;
+            }
+            if (nread == 0)
+                return 0;
+            buffer_pointer = read_buffer;
+            nleft = nread;
+        }
+        c = *buffer_pointer++;
+        *buffer++ = c;
+        nleft--;
+        if (c == '\n') {
+            *buffer = '\0';
+            return buffer - buf_first;
+        }
+    }
+    return -1;
+}
+
+//每次处理一个字符，效率低
 int read_line(int fd, char *buf, int size) {
     int i = 0;
     char c = '\0';
@@ -55,8 +89,8 @@ size_t readn(int fd, void *buffer, size_t length) {
     ptr = buffer;
     count = length;
     while (count > 0) {
+        // 如果为阻塞套接字,read有数据就会返回，不需要数据为count字节
         nread = read(fd, ptr, count);
-
         if (nread < 0) {
             if (errno == EINTR)
                 continue;
