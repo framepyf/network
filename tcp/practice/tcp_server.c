@@ -1,14 +1,10 @@
-/*请你分别写一个客户端程序和服务器程序，客户端程序连接上服务器之后，通过敲命令和服务器进行交互，支持的交互命令包括：
+/*分别写一个客户端程序和服务器程序，客户端程序连接上服务器之后，通过敲命令和服务器进行交互，支持的交互命令包括：
 
 pwd：显示服务器应用程序启动时的当前路径。
 cd：改变服务器应用程序的当前路径。
 ls：显示服务器应用程序当前路径下的文件列表。
 quit：客户端进程退出，但是服务器端不能退出，第二个客户可以再次连接上服务器端。
 
-客户端程序要求
-可以指定待连接的服务器端 IP 地址和端口。
-在输入一个命令之后，回车结束，之后等待服务器端将执行结果返回，客户端程序需要将结果显示在屏幕上。
-样例输出如下所示。
 
 服务器程序要求
 暂时不需要考虑多个客户并发连接的情形，只考虑每次服务一个客户连接。
@@ -30,11 +26,15 @@ quit：客户端进程退出，但是服务器端不能退出，第二个客户�
 #include <unistd.h>
 #include <string.h>
 #include <stdlib.h>
+#include <signal.h>
 
 #define DEFAULT_BACKLOG 128
 #define BUFFER_SIZE 2048
 
 #define RET_QUIT  1
+
+#define EWERR -1
+
 
 // message  format
 typedef struct
@@ -276,6 +276,7 @@ int handleClientMessage(int fd, privMassage_t *pMassage)
 
     if(writev(fd, iovec, 2) < 0){
         perror("write error");
+        return EWERR;
     }
 
 
@@ -335,6 +336,8 @@ int main(int argc, char **argv)
     {
         return -1;
     }
+
+    signal(SIGPIPE,SIG_IGN);
 
 accept_client:
 
