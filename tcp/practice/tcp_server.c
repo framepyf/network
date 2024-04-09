@@ -7,7 +7,6 @@ quit：客户端进程退出，但是服务器端不能退出，第二个客户�
 
 
 服务器程序要求
-暂时不需要考虑多个客户并发连接的情形，只考虑每次服务一个客户连接。
 要把命令执行的结果返回给已连接的客户端。
 服务器端不能因为客户端退出就直接退出。
 
@@ -27,6 +26,7 @@ quit：客户端进程退出，但是服务器端不能退出，第二个客户�
 #include <string.h>
 #include <stdlib.h>
 #include <signal.h>
+#include <sys/select.h>
 
 #define DEFAULT_BACKLOG 128
 #define BUFFER_SIZE 2048
@@ -34,6 +34,8 @@ quit：客户端进程退出，但是服务器端不能退出，第二个客户�
 #define RET_QUIT  1
 
 #define EWERR -1
+
+#define FD_SIZE 1024
 
 
 // message  format
@@ -322,8 +324,13 @@ int main(int argc, char **argv)
 {
     int listenFd = 0;
     int clientFd = 0;
+    int maxFd = 0;
+    int fd= 0;
+    int fdset[FD_SIZE] = {0};
     privMassage_t message;
     int ret = 0;
+    fd_set readfds;
+    fd_set cacheRfds;
 
     if (argc != 2)
     {
@@ -337,28 +344,68 @@ int main(int argc, char **argv)
         return -1;
     }
 
+    fdset[listenFd] = 1;
+
     signal(SIGPIPE,SIG_IGN);
 
-accept_client:
+    FD_ZERO(&cacheRfds);
+    // 标准输入
+    FD_SET(listenFd, &cacheRfds);
 
-    clientFd = accept(listenFd, NULL, NULL);
-    if (clientFd < 0)
-    {
-        perror("accept failed");
-        return -1;
-    }
+    maxFd = listenFd;
+
 
     while (1)
     {
-        ret = read_one_message(clientFd, &message);
-        if (ret <= 0)
-        {
-            goto accept_client;
+        readfds = cacheRfds;
+
+        select(maxFd + 1, &readfds, NULL, NULL, NULL);
+
+        if(FD_ISSET(listenFd,&readfds)){
+                clientFd = accept(listenFd, NULL, NULL);
+                if (clientFd < 0)
+                {
+                    perror("accept failed");
+                    return -1;
+                }
+
+                fdset[clientFd] = 1;
+                FD_SET(clientFd, &cacheRfds);
+                if(clientFd > maxFd){
+                    maxFd = clientFd;
+                }
+
         }
 
-        if( RET_QUIT == handleClientMessage(clientFd, &message)){
-              close(clientFd);
-              goto accept_client;
+        for(fd = 0 ; fd < 1024 ; fd++){
+            if(fdset[fd] == 0 || fd == listenFd){
+                continue;
+            }
+
+            if(FD_ISSET(fd,&readfds)){
+
+                    ret = read_one_message(fd, &message);
+                    if (ret <= 0)
+                    {
+                       continue;
+                    }
+
+                    if( RET_QUIT == handleClientMessage(fd, &message)){
+                        close(fd);
+                        fdset[fd] = 0;
+                        FD_CLR(fd, &cacheRfds);
+
+                        if(maxFd == clientFd){
+                               for(fd = 0 ; fd < maxFd ; fd++){
+                                        if(fdset[fd] == 0){
+                                            continue;
+                                        }
+
+                                        maxFd = fd;
+                               }
+                        }
+                    }
+            }
         }
     }
 }
